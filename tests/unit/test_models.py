@@ -1,11 +1,49 @@
 from pathlib import Path
 
+import pytest
+
 from katana_tsl_parser.models import ParamSetModel, PatchModel, TslModel
 
 samples_folder = Path(__file__).parent.parent / "samples"
 
 
-def test_model_can_parse_tsl_file() -> None:
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("a", "a"),
+        ("abcdef", "abcdef"),
+        ("abcdef  ", "abcdef"),
+        ("  abcdef", "  abcdef"),
+        (["61"], "a"),
+        (["61", "62", "63", "64", "65", "66"], "abcdef"),
+        (["61", "62", "63", "64", "65", "66", "20", "20"], "abcdef"),
+        (["20", "20", "61", "62", "63", "64", "65", "66"], "  abcdef"),
+    ],
+)
+def test_param_set_name_deserialization(name: str | list[str], expected: str) -> None:
+    assert ParamSetModel.validate_name(name) == expected
+
+
+@pytest.mark.parametrize(
+    ("name", "is_valid"),
+    [
+        ("a", True),
+        ("a" * 16, True),
+        ("a" * 17, False),
+        (["97"], True),
+        (["97"] * 16, True),
+        (["97"] * 17, False),
+    ],
+)
+def test_param_set_name_must_be_16_chars_max(name: str | list[str], is_valid: bool) -> None:
+    if is_valid:
+        ParamSetModel.validate_name(name)
+    else:
+        with pytest.raises(ValueError, match="must be 16 chars or fewer"):
+            ParamSetModel.validate_name(name)
+
+
+def test_tsl_model_can_parse_tsl_file() -> None:
     data = (samples_folder / "gojira_-_flying_whales.tsl").read_text()
     parsed = TslModel.parse_raw(data)
 

@@ -31,12 +31,12 @@ class ParamSetModel(BaseModel):
     @validator("name", pre=True)
     def validate_name(cls, v: str | list[str]) -> str:  # noqa: N805
         if isinstance(v, list):
-            v = "".join([chr(int(i, 16)) for i in v]).strip()
+            v = "".join([chr(int(i, 16)) for i in v])
 
         if len(v) > 16:
-            raise ValueError("must be 16 chars or fewer.")
+            raise ValueError("must be 16 chars or fewer")
 
-        return v
+        return v.rstrip()
 
 
 class PatchModel(BaseModel):
