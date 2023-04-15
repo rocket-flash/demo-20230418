@@ -52,11 +52,58 @@ class AmpType(Enum):
     Custom = 0x19
 
 
+class DrivePedalType(Enum):
+    MidBoost = 0x00
+    CleanBoost = 0x01
+    TrebleBoost = 0x02
+    CrunchOD = 0x03
+    NaturalOD = 0x04
+    WarmOD = 0x05
+    FatDS = 0x06
+    MetalDS = 0x08
+    OCTFuzz = 0x09
+    BluesDrive = 0x0A
+    Overdrive = 0x0B
+    Tubescreamer = 0x0C
+    TurboOD = 0x0D
+    Distortion = 0x0E
+    Rat = 0x0F
+    GuVDS = 0x10
+    DSTPlus = 0x11
+    MetalZone = 0x12
+    SixtiesFuzz = 0x13
+    MuffFuzz = 0x14
+    HM2 = 0x15
+    MetalCore = 0x16
+    CentaOD = 0x17
+
+
+class Light(Enum):
+    Green = 0
+    Red = 1
+    Yellow = 2
+
+
 class Patch0Model(TslBaseModel):
+    drive_pedal_on: bool
+    drive_pedal_type: DrivePedalType
+    drive_pedal_drive: int
+    drive_pedal_bottom: int
+    drive_pedal_tone: int
+    drive_pedal_solo_on: bool
+    drive_pedal_solo_level: int
+    drive_pedal_direct_mix: int
+    drive_pedal_level: int
+
     amp_type: AmpType
-    gain: int
-    volume: int
-    raw: list[str]
+    amp_gain: int
+    amp_volume: int
+    amp_eq_bass: int
+    amp_eq_middle: int
+    amp_eq_treble: int
+    amp_eq_presence: int
+
+    _raw: list[str]
 
     @classmethod
     def decode(cls, values: list[str]) -> JsonDict:
@@ -64,10 +111,70 @@ class Patch0Model(TslBaseModel):
             raise ValueError("must contain exactly 72 items")
 
         res = {
+            "drive_pedal_on": i(values[0]) > 0,
+            "drive_pedal_type": DrivePedalType(i(values[1])),
+            "drive_pedal_drive": i(values[2]),
+            "drive_pedal_bottom": i(values[3]) - 50,
+            "drive_pedal_tone": i(values[4]) - 50,
+            "drive_pedal_solo_on": i(values[5]) > 0,
+            "drive_pedal_solo_level": i(values[6]),
+            "drive_pedal_level": i(values[7]),
+            "drive_pedal_direct_mix": i(values[8]),
             "amp_type": AmpType(i(values[17])),
-            "gain": i(values[18]),
-            "volume": i(values[24]),
-            "raw": values,
+            "amp_gain": i(values[18]),
+            "amp_eq_bass": i(values[20]),
+            "amp_eq_middle": i(values[21]),
+            "amp_eq_treble": i(values[22]),
+            "amp_eq_presence": i(values[23]),
+            "amp_volume": i(values[24]),
+            "_raw": values,
+        }
+
+        return res
+
+
+class Patch1Model(TslBaseModel):
+    noise_suppressor_on: bool
+    noise_suppressor_threshold: int
+    noise_suppressor_release: int
+
+    _raw: list[str]
+
+    @classmethod
+    def decode(cls, values: list[str]) -> JsonDict:
+        if len(values) != 50:
+            raise ValueError("must contain exactly 50 items")
+
+        res = {
+            "noise_suppressor_on": i(values[38]) > 0,
+            "noise_suppressor_threshold": i(values[39]),
+            "noise_suppressor_release": i(values[40]),
+            "_raw": values,
+        }
+
+        return res
+
+
+class Patch2Model(TslBaseModel):
+    drive_pedal_green: DrivePedalType
+    drive_pedal_red: DrivePedalType
+    drive_pedal_yellow: DrivePedalType
+
+    booster_light: Light
+
+    _raw: list[str]
+
+    @classmethod
+    def decode(cls, values: list[str]) -> JsonDict:
+        if len(values) != 36:
+            raise ValueError("must contain exactly 36 items")
+
+        res = {
+            "drive_pedal_green": DrivePedalType(i(values[4])),
+            "drive_pedal_red": DrivePedalType(i(values[5])),
+            "drive_pedal_yellow": DrivePedalType(i(values[6])),
+            "booster_light": Light(i(values[25])),
+            "_raw": values,
         }
 
         return res
@@ -81,8 +188,8 @@ class ParamSetModel(TslBaseModel):
     # fx2: list[str] = Field(alias="UserPatch%Fx(2)")
     # delay1: list[str] = Field(alias="UserPatch%Delay(1)")
     # delay2: list[str] = Field(alias="UserPatch%Delay(2)")
-    # patch1: list[str] = Field(alias="UserPatch%Patch_1")
-    # patch2: list[str] = Field(alias="UserPatch%Patch_2")
+    patch1: Patch1Model = Field(alias="UserPatch%Patch_1")
+    patch2: Patch2Model = Field(alias="UserPatch%Patch_2")
     # status: list[str] = Field(alias="UserPatch%Status")
     # knob_assign: list[str] = Field(alias="UserPatch%KnobAsgn")
     # expression_pedal_assign: list[str] = Field(alias="UserPatch%ExpPedalAsgn")
@@ -112,15 +219,23 @@ class ParamSetModel(TslBaseModel):
     def parse_patch0(cls, v: list[str]) -> JsonDict:  # noqa: N805
         return Patch0Model.decode(v)
 
+    @validator("patch1", pre=True)
+    def parse_patch1(cls, v: list[str]) -> JsonDict:  # noqa: N805
+        return Patch1Model.decode(v)
+
+    @validator("patch2", pre=True)
+    def parse_patch2(cls, v: list[str]) -> JsonDict:  # noqa: N805
+        return Patch2Model.decode(v)
+
 
 class MemoModel(TslBaseModel):
     memo: str
     is_tone_central_patch: bool = Field(alias="isToneCentralPatch")
-    note: str
+    note: str | None
 
 
 class PatchModel(TslBaseModel):
-    memo: str | MemoModel
+    memo: MemoModel | str
     param_set: ParamSetModel = Field(alias="paramSet")
 
 
