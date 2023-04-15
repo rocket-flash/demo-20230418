@@ -84,6 +84,27 @@ class Light(Enum):
     Yellow = 2
 
 
+class LowCutFreq(Enum):
+    Flat = 0
+    Hz20 = 1
+    Hz25 = 2
+    Hz31_5 = 3
+    Hz40 = 4
+    Hz50 = 5
+    Hz63 = 6
+    Hz80 = 7
+    Hz100 = 8
+    Hz125 = 9
+    Hz160 = 10
+    Hz200 = 11
+    Hz250 = 12
+    Hz315 = 13
+    Hz400 = 14
+    Hz500 = 15
+    Hz630 = 16
+    Hz800 = 17
+
+
 class Patch0Model(TslBaseModel):
     drive_pedal_on: bool
     drive_pedal_type: DrivePedalType
@@ -120,6 +141,7 @@ class Patch0Model(TslBaseModel):
             "drive_pedal_solo_level": i(values[6]),
             "drive_pedal_level": i(values[7]),
             "drive_pedal_direct_mix": i(values[8]),
+            # TODO: 9 -> 16
             "amp_type": AmpType(i(values[17])),
             "amp_gain": i(values[18]),
             "amp_eq_bass": i(values[20]),
@@ -137,13 +159,16 @@ class Patch1Model(TslBaseModel):
     noise_suppressor_on: bool
     noise_suppressor_threshold: int
     noise_suppressor_release: int
+    # V2
+    solo_on: bool | None
+    solo_level: int | None
 
     _raw: list[str]
 
     @classmethod
     def decode(cls, values: list[str]) -> JsonDict:
-        if len(values) != 50:
-            raise ValueError("must contain exactly 50 items")
+        if len(values) not in (50, 91):
+            raise ValueError("must contain exactly 50 or 91 items, not %d" % len(values))
 
         res = {
             "noise_suppressor_on": i(values[38]) > 0,
@@ -151,6 +176,14 @@ class Patch1Model(TslBaseModel):
             "noise_suppressor_release": i(values[40]),
             "_raw": values,
         }
+
+        if len(values) == 91:
+            res.update(
+                {
+                    "solo_on": i(values[84]) > 0,
+                    "solo_level": i(values[85]),
+                }
+            )
 
         return res
 
@@ -180,6 +213,26 @@ class Patch2Model(TslBaseModel):
         return res
 
 
+class PatchMk2v2Model(TslBaseModel):
+    solo_eq_on: bool
+    solo_eq_low_cut: LowCutFreq
+
+    _raw: list[str]
+
+    @classmethod
+    def decode(cls, values: list[str]) -> JsonDict:
+        if len(values) != 10:
+            raise ValueError(f"must contain exactly 10 items, not {len(values)}")
+
+        res = {
+            "solo_eq_on": i(values[1]) > 0,
+            "solo_eq_low_cut": LowCutFreq(i(values[2])),
+            "_raw": values,
+        }
+
+        return res
+
+
 class ParamSetModel(TslBaseModel):
     name: str = Field(alias="UserPatch%PatchName")
     patch0: Patch0Model = Field(alias="UserPatch%Patch_0")
@@ -199,7 +252,7 @@ class ParamSetModel(TslBaseModel):
     # gafc_expression2_assign: list[str] = Field(alias="UserPatch%GafcExp2Asgn")
     # gafc_expression2_min_max: list[str] = Field(alias="UserPatch%GafcExp2AsgnMinMax")
     # footswitch_assign: list[str] | None = Field(alias="UserPatch%FsAsgn")
-    # patch_mk2v2: list[str] | None = Field(alias="UserPatch%Patch_Mk2V2")
+    patch_mk2v2: PatchMk2v2Model | None = Field(alias="UserPatch%Patch_Mk2V2")
     # contour1: list[str] | None = Field(alias="UserPatch%Contour(1)")
     # contour2: list[str] | None = Field(alias="UserPatch%Contour(2)")
     # contour3: list[str] | None = Field(alias="UserPatch%Contour(3)")
@@ -226,6 +279,10 @@ class ParamSetModel(TslBaseModel):
     @validator("patch2", pre=True)
     def parse_patch2(cls, v: list[str]) -> JsonDict:  # noqa: N805
         return Patch2Model.decode(v)
+
+    @validator("patch_mk2v2", pre=True)
+    def parse_patch_mk2v2(cls, v: list[str]) -> JsonDict:  # noqa: N805
+        return PatchMk2v2Model.decode(v)
 
 
 class MemoModel(TslBaseModel):
