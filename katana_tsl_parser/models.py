@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, IntEnum
 from typing import Any
 
 from pydantic import BaseModel, Field, validator
@@ -84,6 +84,17 @@ class Light(Enum):
     Yellow = 2
 
 
+class CabResonance(Enum):
+    Vintage = 0
+    Modern = 1
+    Deep = 2
+
+
+class EqPosition(Enum):
+    AmpIn = 0
+    AmpOut = 1
+
+
 class LowCutFreq(Enum):
     Flat = 0
     Hz20 = 1
@@ -103,6 +114,62 @@ class LowCutFreq(Enum):
     Hz500 = 15
     Hz630 = 16
     Hz800 = 17
+
+
+class MidFreq(IntEnum):
+    def __new__(cls, value, description=""):
+        obj = int.__new__(cls, value)
+        obj._value_ = value
+        obj.description = description
+
+        return obj
+
+    Hz20 = 0, "20.0 Hz"
+    Hz25 = 1, "25.0 Hz"
+    Hz31_5 = 2, "31.5 Hz"
+    Hz40 = 3, "40.0 Hz"
+    Hz50 = 4, "50.0 Hz"
+    Hz63 = 5, "63.0 Hz"
+    Hz80 = 6, "80.0 Hz"
+    Hz100 = 7, "100 Hz"
+    Hz125 = 8, "125 Hz"
+    Hz160 = 9, "160 Hz"
+    Hz200 = 10, "200 Hz"
+    Hz250 = 11, "250 Hz"
+    Hz315 = 12, "315 Hz"
+    Hz400 = 13, "400 Hz"
+    Hz500 = 14, "500 Hz"
+    Hz630 = 15, "630 Hz"
+    Hz800 = 16, "800 Hz"
+    Hz1000 = 17, "1.00 kHz"
+    Hz1250 = 18, "1.25 kHz"
+    Hz1600 = 19, "1.60 kHz"
+    Hz2000 = 20, "2.00 kHz"
+    Hz2500 = 21, "2.50 kHz"
+    Hz3150 = 22, "3.15 kHz"
+    Hz4000 = 23, "4.00 kHz"
+    Hz5000 = 24, "5.00 kHz"
+    Hz6300 = 25, "6.30 kHz"
+    Hz8000 = 26, "8.00 kHz"
+    Hz10000 = 27, "10.0 kHz"
+
+
+class HighCutFreq(Enum):
+    Hz630 = 0
+    Hz800 = 1
+    Hz1000 = 2
+    Hz1250 = 3
+    Hz1600 = 4
+    Hz2000 = 5
+    Hz2500 = 6
+    Hz3150 = 7
+    Hz4000 = 8
+    Hz5000 = 9
+    Hz6300 = 10
+    Hz8000 = 11
+    Hz10000 = 12
+    Hz12500 = 13
+    Flat = 14
 
 
 class Patch0Model(TslBaseModel):
@@ -163,6 +230,8 @@ class Patch1Model(TslBaseModel):
     solo_on: bool | None
     solo_level: int | None
 
+    contour: int
+
     _raw: list[str]
 
     @classmethod
@@ -185,6 +254,20 @@ class Patch1Model(TslBaseModel):
                 }
             )
 
+            match i(values[86]), i(values[87]):
+                case 0, 0:
+                    contour = 0
+                case 1, 0:
+                    contour = 1
+                case 1, 1:
+                    contour = 2
+                case 1, 2:
+                    contour = 3
+                case x, y:
+                    raise ValueError(f"Invalid values for contour: ({x}, {y})")
+
+            res['contour'] = contour
+
         return res
 
 
@@ -194,6 +277,8 @@ class Patch2Model(TslBaseModel):
     drive_pedal_yellow: DrivePedalType
 
     booster_light: Light
+
+    cab_resonance: CabResonance
 
     _raw: list[str]
 
@@ -207,6 +292,7 @@ class Patch2Model(TslBaseModel):
             "drive_pedal_red": DrivePedalType(i(values[5])),
             "drive_pedal_yellow": DrivePedalType(i(values[6])),
             "booster_light": Light(i(values[25])),
+            "cab_resonance": CabResonance(i(values[35])),
             "_raw": values,
         }
 
@@ -214,8 +300,16 @@ class Patch2Model(TslBaseModel):
 
 
 class PatchMk2v2Model(TslBaseModel):
+    solo_eq_position: EqPosition
     solo_eq_on: bool
     solo_eq_low_cut: LowCutFreq
+    solo_eq_low_gain: float
+    solo_eq_mid_freq: MidFreq
+    solo_eq_mid_q: float
+    solo_eq_mid_gain: float
+    solo_eq_high_gain: float
+    solo_eq_high_cut: HighCutFreq
+    solo_eq_level: float
 
     _raw: list[str]
 
@@ -225,8 +319,36 @@ class PatchMk2v2Model(TslBaseModel):
             raise ValueError(f"must contain exactly 10 items, not {len(values)}")
 
         res = {
+            "solo_eq_position": i(values[0]),
             "solo_eq_on": i(values[1]) > 0,
             "solo_eq_low_cut": LowCutFreq(i(values[2])),
+            "solo_eq_low_gain": (i(values[3]) - 24) * 0.5,
+            "solo_eq_mid_freq": MidFreq(i(values[4])),
+            "solo_eq_mid_q": 2 ** (i(values[5]) - 1),
+            "solo_eq_mid_gain": (i(values[6]) - 24) * 0.5,
+            "solo_eq_high_gain": (i(values[7]) - 24) * 0.5,
+            "solo_eq_high_cut": HighCutFreq(i(values[8])),
+            "solo_eq_level": (i(values[9]) - 24) * 0.5,
+            "_raw": values,
+        }
+
+        return res
+
+
+class ContourModel(TslBaseModel):
+    contour_type: int
+    freq_shift: int
+
+    _raw: list[str]
+
+    @classmethod
+    def decode(cls, values: list[str]) -> JsonDict:
+        if len(values) != 2:
+            raise ValueError(f"must contain exactly 2 items, not {len(values)}")
+
+        res = {
+            "contour_type": i(values[0]) + 1,
+            "freq_shift": i(values[1]) - 50,
             "_raw": values,
         }
 
@@ -253,9 +375,9 @@ class ParamSetModel(TslBaseModel):
     # gafc_expression2_min_max: list[str] = Field(alias="UserPatch%GafcExp2AsgnMinMax")
     # footswitch_assign: list[str] | None = Field(alias="UserPatch%FsAsgn")
     patch_mk2v2: PatchMk2v2Model | None = Field(alias="UserPatch%Patch_Mk2V2")
-    # contour1: list[str] | None = Field(alias="UserPatch%Contour(1)")
-    # contour2: list[str] | None = Field(alias="UserPatch%Contour(2)")
-    # contour3: list[str] | None = Field(alias="UserPatch%Contour(3)")
+    contour1: ContourModel | None = Field(alias="UserPatch%Contour(1)")
+    contour2: ContourModel | None = Field(alias="UserPatch%Contour(2)")
+    contour3: ContourModel | None = Field(alias="UserPatch%Contour(3)")
     # eq2: list[str] | None = Field(alias="UserPatch%Eq(2)")
 
     @validator("name", pre=True)
@@ -283,6 +405,18 @@ class ParamSetModel(TslBaseModel):
     @validator("patch_mk2v2", pre=True)
     def parse_patch_mk2v2(cls, v: list[str]) -> JsonDict:  # noqa: N805
         return PatchMk2v2Model.decode(v)
+
+    @validator("contour1", pre=True)
+    def parse_contour1(cls, v: list[str]) -> JsonDict:  # noqa: N805
+        return ContourModel.decode(v)
+
+    @validator("contour2", pre=True)
+    def parse_contour2(cls, v: list[str]) -> JsonDict:  # noqa: N805
+        return ContourModel.decode(v)
+
+    @validator("contour3", pre=True)
+    def parse_contour3(cls, v: list[str]) -> JsonDict:  # noqa: N805
+        return ContourModel.decode(v)
 
 
 class MemoModel(TslBaseModel):
