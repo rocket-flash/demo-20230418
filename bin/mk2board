@@ -1,0 +1,7 @@
+#! /bin/bash
+
+set -eu
+
+cd /home/mathieu/apps/Katana_Mk2_FxFloorBoard_FW2
+
+(./Katana-Mk2-FxFloorBoard &>/dev/null &)

@@ -1,0 +1,26 @@
+#! /bin/bash
+
+set -eu -o pipefail
+
+#fmt="${1:?}"
+#file_a="${2:?}"
+#file_b="${3:?}"
+
+#apply() {
+    #jq "${fmt}" < "$1" | json-struct
+#}
+
+#colordiff -u <(apply "${file_a}") <(apply "${file_b}")
+
+fmt="${1:?}"
+file="${2:?}"
+idx_a="${3:?}"
+idx_b="${4:?}"
+
+apply() {
+    jq ".data[0][$1] | ${fmt}" < "${file}" | json-struct
+}
+
+#apply 0
+
+colordiff -u <(apply "${idx_a}") <(apply "${idx_b}")
