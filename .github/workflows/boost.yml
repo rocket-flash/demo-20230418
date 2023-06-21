@@ -11,7 +11,9 @@ on:
 
 jobs:
   boost-scanner:
-    if: ${{ github.event.inputs.job_name == "boost-scanner" || github.event.inputs.job_name == "" }}
+    if: |
+      github.event.inputs.job_name == "boost-scanner" ||
+      github.event.inputs.job_name == ""
     runs-on: ubuntu-latest
     steps:
       - run: echo "Running boost scanner"
