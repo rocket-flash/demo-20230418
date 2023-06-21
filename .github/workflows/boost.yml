@@ -1,0 +1,29 @@
+name: test
+on:
+  workflow_dispatch:
+    inputs:
+      job_name:
+        description: Name of the job to run
+        required: false
+      scan_params:
+        description: The scan parameters
+        required: true
+
+jobs:
+  boost-scanner:
+    if: github.event.inputs.job_name == "boost-scanner" || github.event.inputs.job_name == ""
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Running boost scanner"
+
+  boost-scanner-boostsecurityio-semgrep:
+    if: github.event.inputs.job_name == "boost-scanner-boostsecurityio-semgrep"
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Running semgrep"
+
+  boost-scanner-boostsecurityio-snyk:
+    if: github.event.inputs.job_name == "boost-scanner-boostsecurityio-snyk"
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Running semgrep"
